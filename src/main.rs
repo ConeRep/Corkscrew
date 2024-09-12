@@ -1,9 +1,17 @@
+#[allow(dead_code)]
+
 use std::{
     env, fs::File, io::{Read, Write},
     process::{exit, Command}
 };
 
-#[allow(dead_code)]
+use colored::Colorize;
+
+macro_rules! error_msg {
+    ($($arg:tt)*) => {
+        eprintln!("{} {}", "[Error]:".red(), format_args!($($arg)*));
+    }
+}
 
 #[derive(PartialEq)]
 enum Operations {
@@ -107,42 +115,57 @@ fn compile_program(program: Vec<(Operations, Option<i64>)>, output_file: &String
     let _ = file.write(b"    syscall\n");
 }
 
-fn load_program_from_file(file_path: String) -> Vec<(Operations, Option<i64>)> {
-    let mut file: File = File::open(file_path).unwrap();
-    let mut contents = String::new();
-    let _ = file.read_to_string(&mut contents);
+fn lex(contents: String) -> Vec<(usize, String)> {
+    let mut tokens: Vec<(usize, String)> = Vec::new();
+    let mut line_num: usize = 1;
+    for line in contents.lines() {
+        for token in line.split_whitespace() {
+            tokens.push((line_num, token.to_string()));
+        }
+        line_num += 1;
+    }
     
-    let mut program: Vec<(Operations, Option<i64>)> = Vec::new();
-    
-    let tokens: Vec<&str> = contents.split_whitespace().collect();
+    tokens
+}
+
+fn parse_tokens_as_op(program: &mut Vec<(Operations, Option<i64>)>, tokens: Vec<(usize, String)>) {
     for token in tokens {
-        match token {
+        match token.1.as_str() {
             "+" => { program.push((Operations::Add, None)); }
             "-" => { program.push((Operations::Sub, None)); }
             
             "dump" => { program.push((Operations::Dump, None)); }
             
             _ => {
-                match token.parse::<i64>() {
+                match token.1.parse::<i64>() {
                     Ok(_) => {
-                        program.push((Operations::Push, Some(token.parse().unwrap())));
+                        program.push((Operations::Push, Some(token.1.parse().unwrap())));
                     }
-                    
                     Err(_) => {
-                        eprintln!("[Error]: Invalid token `{}`", token);
+                        error_msg!("Invalid token `{}` at line: {}", token.1, token.0);
                         exit(1);
                     }
                 }
             }
         }
     }
+}
+
+fn load_program_from_file(file_path: String) -> Vec<(Operations, Option<i64>)> {
+    let mut file: File = File::open(file_path).unwrap();
+    let mut contents = String::new();
+    let _ = file.read_to_string(&mut contents);
+    
+    let tokens = lex(contents);
+    let mut program: Vec<(Operations, Option<i64>)> = Vec::new();
+    parse_tokens_as_op(&mut program, tokens);
     
     program
 }
 
 fn usage(program_file: &String) {
-    println!("[Usage]: {} <[SUBCOMMAND]> <[ARGS]>", program_file);
-    println!("[Subcommand]:");
+    println!("{} {} {}", "[Usage]:".yellow(), program_file, "<[SUBCOMMAND]> <[ARGS]>");
+    println!("{}", "[Subcommand]:".blue());
     println!("    - build: <FILE> <EXEC> -> Compiles the program to a executable");
     println!("    - sim:   <FILE>        -> Simulates the program");
 }
@@ -161,7 +184,7 @@ fn main() {
     
     if args.len() < 2 {
         usage(&program_file);
-        eprintln!("[Error]: Invalid subcommand");
+        error_msg!("[Error]: Invalid subcommand");
         exit(1);
     }
     
@@ -170,7 +193,7 @@ fn main() {
         "build" => {
             if args.len() < 3 || args.len() > 4 {
                 usage(&program_file);
-                eprintln!("[Error]: Invalid arguments!");
+                error_msg!("Invalid arguments!");
                 exit(1);
             }
             
@@ -188,7 +211,7 @@ fn main() {
         "sim" => {
             if args.len() < 3 || args.len() > 3 {
                 usage(&program_file);
-                eprintln!("[Error]: Invalid arguments!");
+                error_msg!("[Error]: Invalid arguments!");
                 exit(1);
             }
             
@@ -199,7 +222,7 @@ fn main() {
         
         _ => {
             usage(&program_file);
-            eprintln!("[Error]: invalid subcommand `{}`", subcommand);
+            error_msg!("[Error]: invalid subcommand `{}`", subcommand);
             exit(1);
         }
     }
