@@ -16,8 +16,12 @@ macro_rules! error_msg {
 #[derive(PartialEq)]
 enum Operations {
     Push,
+    
     Add,
     Sub,
+    
+    Equal,
+    
     Dump,
 }
 
@@ -38,6 +42,12 @@ fn simulate_program(program: Vec<(Operations, Option<i64>)>) {
                 let a = stack.pop().unwrap();
                 let b = stack.pop().unwrap();
                 stack.push(b - a);
+            }
+            
+            Operations::Equal => {
+                let a = stack.pop().unwrap();
+                let b = stack.pop().unwrap();
+                stack.push((b == a) as i64);
             }
             
             Operations::Dump => {
@@ -104,6 +114,16 @@ fn compile_program(program: Vec<(Operations, Option<i64>)>, output_file: &String
                 let _ = file.write(b"    push rbx\n");
             }
             
+            Operations::Equal => {
+                let _ = file.write(b"    mov rcx, 0\n");
+                let _ = file.write(b"    mov rdx, 1\n");
+                let _ = file.write(b"    pop rax\n");
+                let _ = file.write(b"    pop rbx\n");
+                let _ = file.write(b"    cmp rax, rbx\n");
+                let _ = file.write(b"    cmove rcx, rdx\n");
+                let _ = file.write(b"    push rcx\n");
+            }
+            
             Operations::Dump => {
                 let _ = file.write(b"    pop rdi\n");
                 let _ = file.write(b"    call dump\n");
@@ -133,6 +153,8 @@ fn parse_tokens_as_op(program: &mut Vec<(Operations, Option<i64>)>, tokens: Vec<
         match token.1.as_str() {
             "+" => { program.push((Operations::Add, None)); }
             "-" => { program.push((Operations::Sub, None)); }
+            
+            "?=" => { program.push((Operations::Equal, None)); }
             
             "dump" => { program.push((Operations::Dump, None)); }
             
